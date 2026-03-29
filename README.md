@@ -46,12 +46,25 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
+O instalador é inteligente:
+- **Detecta automaticamente** se você já tem n8n/PostgreSQL rodando (ex: via Portainer) e oferece instalar apenas a API.
+- **Mostra um resumo** de tudo que você digitou antes de salvar. Se errou algo, basta digitar `n` para corrigir.
+- **Campos obrigatórios** são validados — ele não deixa prosseguir se estiverem vazios.
+
+**D. Corrigir credenciais depois**
+
+Errou alguma informação? Rode:
+```bash
+./deploy.sh --reconfig
+```
+
+Ele carrega os valores já salvos no `.env` como padrão e permite editar apenas o que precisar.
+
 **Opcional - Importação Automática dos Workflows:**
-O script tenta importar todos os fluxos da pasta `/workflows` sozinhos para o n8n no final. Para que isso funcione 100%, você deve:
-1. Abrir o n8n assim que ele subir (`http://SEU_IP:5678`).
-2. Criar a sua conta de admin.
-3. Ir em Settings > API > Create API Key.
-4. Adicionar essa chave na variável temporária local ou, se o script informou que não importou por falta de chave, importá-los via painel web ou adicionando-a ao seu arquivo `.env` e rodando o comando de script de novo.
+O script tenta importar todos os fluxos da pasta `/workflows` para o n8n no final. Para isso funcionar:
+1. Abrir o n8n (`http://SEU_IP:5678`) e criar conta de admin.
+2. Ir em Settings > API > Create API Key.
+3. Informar essa chave durante o `./deploy.sh` ou rodar `./deploy.sh --reconfig` para adicioná-la depois.
 
 ---
 
