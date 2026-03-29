@@ -101,14 +101,56 @@ Terminou o Deploy? Excelente.
 ├── tools/                 # Ferramentas Python que o N8N consulta.
 │   ├── api.py             # App FastAPI 
 │   ├── setup.py           # Instalador das tabelas 
+│   ├── gdrive_auth.py     # Autenticação OAuth2 do Google Drive
 │   └── *.py               # Clients do DB, Drive, Whatsapp, etc...
 ├── workflows/             # Arquivos .json exportados do painel N8N.
 ├── prompts/               # System Prompts injetados para o modelo.
 ├── docker-compose.yml     # Orquestrador oficial em Docker.
 ├── Dockerfile             # Containerizer isolado para o FastAPI.
-├── deploy.sh              # Magic Script Interativo de Setup.
+├── deploy.sh              # Instalador Interativo Inteligente.
 └── requirements.txt       # Dependências da lógica de I.A do Python.
 ```
+
+---
+
+## 🔄 Cancelar / Recomeçar Instalação
+
+Se algo deu errado durante o deploy e você quer **começar do zero**:
+
+```bash
+# 1. Para e remove todos os containers do Agent Smith
+cd ~/agent-smith
+docker compose down --remove-orphans 2>/dev/null
+docker-compose down --remove-orphans 2>/dev/null
+
+# 2. Remove o .env (será recriado pelo deploy.sh)
+rm -f .env
+
+# 3. Atualiza o repositório para a versão mais recente
+git reset --hard origin/main
+git pull origin main
+
+# 4. Roda a instalação novamente
+chmod +x deploy.sh
+./deploy.sh
+```
+
+> **Nota:** O comando `git reset --hard` descarta qualquer alteração local. Se você modificou arquivos manualmente, faça backup antes.
+
+---
+
+## 🛠 Troubleshooting
+
+| Problema | Solução |
+|----------|---------|
+| `git pull` dá erro de conflito | Rode `git reset --hard origin/main` e depois `git pull` |
+| Digitou credencial errada | Rode `./deploy.sh --reconfig` |
+| Container não sobe | Verifique logs: `docker logs smith_api` |
+| Porta já em uso | O script detecta automaticamente e oferece modo API_ONLY |
+| Erro no setup do banco | Acesse `http://<IP>:8000/docs` e rode POST `/setup` manualmente |
+| Google Drive não autentica | Rode: `docker exec -it smith_api python tools/gdrive_auth.py` |
+
+---
 
 Feito e mantido pela **iDVL Tecnologia Contábil**. 
 > *Somos mais que parceiros dos nossos clientes, somos a extensão do sucesso deles.*
