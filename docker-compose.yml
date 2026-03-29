@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   postgres:
+    profiles: ["full"]
     image: postgres:15-alpine
     container_name: smith_postgres
     restart: always
@@ -34,6 +35,7 @@ services:
       POSTGRES_HOST: postgres
 
   n8n:
+    profiles: ["full"]
     image: docker.n8n.io/n8nio/n8n
     container_name: smith_n8n
     restart: always
