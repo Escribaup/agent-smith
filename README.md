@@ -63,7 +63,12 @@ Durante a execução do `./deploy.sh`, ele criará o arquivo `.env` com seguran�
 2. **ZAPI_INSTANCE_ID** e **ZAPI_TOKEN**: Chaves do gerenciador de disparo [Z-API](https://z-api.io) do seu WhatsApp.
 3. **CEO_WHATSAPP**: Telefone administrador inicial apenas em números (Ex: `5541999999999`).
 4. **POSTGRES_PASSWORD**: Crie uma senha forte (O postgres inicializa com ela).
-5. **IDs do Google Drive**: Base64 JSON da Service Account, e ID da pasta mestre para arquivamento dos Relatórios Inteligentes.
+5. **Google Drive (OAuth2)**:
+   - Acesse [console.cloud.google.com](https://console.cloud.google.com/apis/credentials)
+   - Crie uma credencial **ID do cliente OAuth** → Tipo: **Aplicativo para computador**
+   - Copie o **Client ID** e **Client Secret** gerados
+   - Também anote o **ID da pasta** do Google Drive onde os relatórios serão salvos
+   - Durante o deploy, o script pedirá que você faça login na conta Google via URL no terminal
 
 ---
 

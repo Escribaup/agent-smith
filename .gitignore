@@ -2,6 +2,8 @@
 .env
 .env.*
 *.log
+token.json
+.tmp_workflows/
 
 # Caches e Pythons artifacts
 __pycache__/

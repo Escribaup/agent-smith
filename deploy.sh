@@ -114,14 +114,11 @@ else
     ask_and_set "POSTGRES_PASSWORD" "Senha do seu Postgres" ""
 fi
 
+echo -e "\n${BLUE}--- Credenciais Google Drive (OAuth2) ---${NC}"
+ask_and_set "GOOGLE_CLIENT_ID" "Google Client ID (ex: 123456-abc.apps.googleusercontent.com)" ""
+ask_and_set "GOOGLE_CLIENT_SECRET" "Google Client Secret (ex: GOCSPX-xxx)" ""
 ask_and_set "GDRIVE_ROOT_FOLDER_ID" "ID da Pasta Inicial do Google Drive" ""
-ask_and_set "N8N_API_KEY" "N8N API Key (necessária para importar workflows agora)" ""
-
-# Base64 Service Account
-read -p "Cole o JSON (Base64) do Google Service Account (ou deixe vazio para configurar depois): " G_JSON
-if [ -n "$G_JSON" ]; then
-    sed -i "s|^GOOGLE_SERVICE_ACCOUNT_JSON=.*|GOOGLE_SERVICE_ACCOUNT_JSON=$G_JSON|g" .env
-fi
+ask_and_set "N8N_API_KEY" "N8N API Key (necessária para importar workflows)" ""
 
 echo -e "${GREEN}✔ Arquivo .env configurado com credenciais providas.${NC}\n"
 
@@ -147,8 +144,23 @@ sleep 10
 echo -e "Criação das tabelas do projeto correndo na base..."
 curl -s -X POST http://localhost:8000/setup > /dev/null && echo -e " ${GREEN}✔ Setup inicial SQL concluído.${NC}" || echo -e "${RED}Aviso: Falha ao acionar webhook de setup na API.${NC}"
 
+# 3.5 Autenticação Google Drive (OAuth2)
+GOOGLE_CID=$(grep "^GOOGLE_CLIENT_ID=" .env | cut -d '=' -f2)
+if [ -n "$GOOGLE_CID" ] && [ "$GOOGLE_CID" != '""' ]; then
+    echo -e "\n${YELLOW}[3.5/5] Autenticação Google Drive (OAuth2)...${NC}"
+    echo -e "Uma URL será exibida. Copie, abra no navegador, faça login e cole o código aqui."
+    docker exec -it smith-api python tools/gdrive_auth.py
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✔ Google Drive autenticado com sucesso.${NC}\n"
+    else
+        echo -e "${YELLOW}⚠ Autenticação Google Drive ignorada. Rode depois: docker exec -it smith-api python tools/gdrive_auth.py${NC}\n"
+    fi
+else
+    echo -e "\n${YELLOW}⚠ GOOGLE_CLIENT_ID não configurado, pulando autenticação Drive.${NC}\n"
+fi
+
 # 4. Importação de Workflows no n8n
-echo -e "\n${YELLOW}[4/4] Injeção Automática dos Workflows no N8N...${NC}"
+echo -e "${YELLOW}[4/5] Injeção Automática dos Workflows no N8N...${NC}"
 N8N_API=$(grep "^N8N_API_KEY=" .env | cut -d '=' -f2)
 
 if [ -z "$N8N_API" ] || [ "$N8N_API" == '""' ]; then
