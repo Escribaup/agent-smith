@@ -73,6 +73,7 @@ POSTGRES_USER=${ENV_VALS[POSTGRES_USER]}
 POSTGRES_PASSWORD=${ENV_VALS[POSTGRES_PASSWORD]}
 
 # N8N
+N8N_BASE_URL=${ENV_VALS[N8N_BASE_URL]}
 N8N_WEBHOOK_BASE_URL=${ENV_VALS[N8N_WEBHOOK_BASE_URL]}
 N8N_API_KEY=${ENV_VALS[N8N_API_KEY]}
 
@@ -219,7 +220,9 @@ collect_credentials() {
     ask "GDRIVE_ROOT_FOLDER_ID" "  ID da pasta raiz no Drive"              "${ENV_VALS[GDRIVE_ROOT_FOLDER_ID]}" "false"
 
     echo -e "\n${BOLD}── N8N ──${NC}"
-    ask "N8N_WEBHOOK_BASE_URL" "  URL base de webhooks (https://seu-n8n.com/webhook)" "${ENV_VALS[N8N_WEBHOOK_BASE_URL]}" "false"
+    echo -e "  ${CYAN}Informe a URL do seu n8n (ex: https://n8n.seudominio.com ou http://IP:5678)${NC}"
+    ask "N8N_BASE_URL"         "* URL do painel n8n"                                  "${ENV_VALS[N8N_BASE_URL]}"         "true"
+    ask "N8N_WEBHOOK_BASE_URL" "  URL base de webhooks (geralmente a mesma + /webhook)" "${ENV_VALS[N8N_WEBHOOK_BASE_URL]:-${ENV_VALS[N8N_BASE_URL]}/webhook}" "false"
     ask "N8N_API_KEY"          "  API Key do n8n (Settings → API)"                    "${ENV_VALS[N8N_API_KEY]}"          "false"
 }
 
@@ -287,11 +290,11 @@ curl -s -X POST http://localhost:8000/setup > /dev/null \
 if [ -n "${ENV_VALS[GOOGLE_CLIENT_ID]}" ]; then
     echo -e "\n${YELLOW}[4/5] Autenticação Google Drive (OAuth2)...${NC}"
     echo -e "Uma URL será exibida. Copie, abra no seu navegador, faça login e cole o código aqui."
-    docker exec -it smith-api python tools/gdrive_auth.py
+    docker exec -it smith_api python tools/gdrive_auth.py
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✔ Google Drive autenticado.${NC}"
     else
-        echo -e "${YELLOW}⚠ Pule por agora. Rode depois: docker exec -it smith-api python tools/gdrive_auth.py${NC}"
+        echo -e "${YELLOW}⚠ Pule por agora. Rode depois: docker exec -it smith_api python tools/gdrive_auth.py${NC}"
     fi
 else
     echo -e "\n${YELLOW}[4/5] Google Drive: GOOGLE_CLIENT_ID não informado, pulando.${NC}"
@@ -303,41 +306,55 @@ fi
 echo -e "\n${YELLOW}[5/5] Importação dos Workflows no N8N...${NC}"
 
 N8N_API="${ENV_VALS[N8N_API_KEY]}"
+N8N_URL="${ENV_VALS[N8N_BASE_URL]}"
 
-if [ -z "$N8N_API" ]; then
-    echo -e "${YELLOW}⚠ N8N_API_KEY não configurada. Importe os .json da pasta workflows/ manualmente pelo painel do n8n.${NC}"
+# Remove trailing slash da URL
+N8N_URL="${N8N_URL%/}"
+
+if [ -z "$N8N_API" ] || [ -z "$N8N_URL" ]; then
+    echo -e "${YELLOW}⚠ N8N_API_KEY ou N8N_BASE_URL não configurados. Importe os .json da pasta workflows/ manualmente pelo painel do n8n.${NC}"
 else
-    if [ -d "workflows" ]; then
-        mkdir -p .tmp_workflows
-        cp workflows/*.json .tmp_workflows/
-
-        # Detecta IP da máquina para substituir nos workflows
-        HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-        [ -z "$HOST_IP" ] && HOST_IP="127.0.0.1"
-
-        if [ "$MODE" == "API_ONLY" ]; then
-            echo "Ajustando rotas nos workflows (smith-api:8000 → $HOST_IP:8000)..."
-            find .tmp_workflows/ -type f -name "*.json" -exec sed -i "s|smith-api:8000|$HOST_IP:8000|g" {} +
-            find .tmp_workflows/ -type f -name "*.json" -exec sed -i "s|localhost:8000|$HOST_IP:8000|g" {} +
-        fi
-
-        for f in .tmp_workflows/*.json; do
-            [ -f "$f" ] || continue
-            FNAME=$(basename "$f")
-            echo -n "  Enviando $FNAME..."
-            STATUS=$(curl -s -w "%{http_code}" -o /dev/null -X POST "http://localhost:5678/api/v1/workflows" \
-                 -H "X-N8N-API-KEY: $N8N_API" \
-                 -H "Content-Type: application/json" \
-                 -d @"$f")
-            if [ "$STATUS" == "200" ] || [ "$STATUS" == "201" ]; then
-                echo -e " ${GREEN}✔${NC}"
-            else
-                echo -e " ${RED}✗ (HTTP $STATUS)${NC}"
-            fi
-        done
-        rm -rf .tmp_workflows
+    # Testa conexão com n8n antes de importar
+    echo -n "  Testando conexão com n8n ($N8N_URL)..."
+    TEST_STATUS=$(curl -s -w "%{http_code}" -o /dev/null --max-time 10 "$N8N_URL/api/v1/workflows?limit=1" \
+         -H "X-N8N-API-KEY: $N8N_API")
+    if [ "$TEST_STATUS" != "200" ]; then
+        echo -e " ${RED}✗ (HTTP $TEST_STATUS)${NC}"
+        echo -e "${YELLOW}⚠ Não foi possível conectar ao n8n. Verifique a URL e API Key. Importe manualmente.${NC}"
     else
-        echo -e "${RED}Pasta workflows/ não encontrada.${NC}"
+        echo -e " ${GREEN}✔ Conectado${NC}"
+        if [ -d "workflows" ]; then
+            mkdir -p .tmp_workflows
+            cp workflows/*.json .tmp_workflows/
+
+            # Detecta IP (para substituição nos workflows)
+            HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+            [ -z "$HOST_IP" ] && HOST_IP="127.0.0.1"
+
+            if [ "$MODE" == "API_ONLY" ]; then
+                echo "  Ajustando rotas nos workflows (smith-api:8000 → $HOST_IP:8000)..."
+                find .tmp_workflows/ -type f -name "*.json" -exec sed -i "s|smith-api:8000|$HOST_IP:8000|g" {} +
+                find .tmp_workflows/ -type f -name "*.json" -exec sed -i "s|localhost:8000|$HOST_IP:8000|g" {} +
+            fi
+
+            for f in .tmp_workflows/*.json; do
+                [ -f "$f" ] || continue
+                FNAME=$(basename "$f")
+                echo -n "  Enviando $FNAME..."
+                STATUS=$(curl -s -w "%{http_code}" -o /dev/null -X POST "$N8N_URL/api/v1/workflows" \
+                     -H "X-N8N-API-KEY: $N8N_API" \
+                     -H "Content-Type: application/json" \
+                     -d @"$f")
+                if [ "$STATUS" == "200" ] || [ "$STATUS" == "201" ]; then
+                    echo -e " ${GREEN}✔${NC}"
+                else
+                    echo -e " ${RED}✗ (HTTP $STATUS)${NC}"
+                fi
+            done
+            rm -rf .tmp_workflows
+        else
+            echo -e "${RED}Pasta workflows/ não encontrada.${NC}"
+        fi
     fi
 fi
 
