@@ -1,0 +1,17 @@
+# Arquivos com senhas e configuracoes da maquina de deploy
+.env
+.env.*
+*.log
+
+# Caches e Pythons artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+
+# Pastas de IDEs
+.vscode/
+.idea/
+
+# Sistema Mac/Linux
+.DS_Store

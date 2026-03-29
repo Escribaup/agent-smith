@@ -1,0 +1,156 @@
+{
+  "name": "02-entrevista-equipe",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import db_client\n\ninterviews = db_client.get_all_interviews('fase1')\nnext_person = next((i for i in interviews if not i.get('completed')), None)\nif next_person:\n    return {\"has_next\": True, \"person\": next_person}\nreturn {\"has_next\": False}"
+      },
+      "id": "2",
+      "name": "get-next-interviewee",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import whatsapp_client\n\nif _input.item.json.get('has_next'):\n    person = _input.item.json['person']\n    num = person.get('phone')\n    msg = f\"Olá {person.get('person_name')}, sou o assistente da iDVL. O Julio pediu que eu conversasse com você sobre o seu trabalho. São 5 perguntas rápidas. Pode ser agora?\"\n    whatsapp_client.send_message(num, msg)\nreturn _input.item.json"
+      },
+      "id": "3",
+      "name": "send-intro-message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smith/interview-wait",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "4",
+      "name": "wait-for-response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "model": "claude-3-haiku-20240307",
+        "options": {}
+      },
+      "id": "5",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import db_client\n\n# Exemplo: AI responde algo processado que a engine salva.\ndb_client.save_interview_answer('Nome','Phone','fase1','Q1','Resp')\nreturn _input.item.json"
+      },
+      "id": "6",
+      "name": "save-interview",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.todos_entrevistados }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "7",
+      "name": "IF: todos-entrevistados",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1320, 0]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "get-next-interviewee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-next-interviewee": {
+      "main": [
+        [
+          {
+            "node": "send-intro-message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send-intro-message": {
+      "main": [
+        [
+          {
+            "node": "wait-for-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wait-for-response": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "save-interview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save-interview": {
+      "main": [
+        [
+          {
+            "node": "IF: todos-entrevistados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

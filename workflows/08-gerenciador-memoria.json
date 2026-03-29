@@ -1,0 +1,155 @@
+{
+  "name": "08-gerenciador-memoria",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.operacao }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "read",
+              "output": 0
+            },
+            {
+              "value2": "write",
+              "output": 1
+            },
+            {
+              "value2": "append_log",
+              "output": 2
+            }
+          ]
+        }
+      },
+      "id": "2",
+      "name": "route-operation",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import gdrive_client\n\nfile_id = _input.item.json.get('payload', {}).get('file_id')\n# Placeholder implementation\nreturn {\"success\": True, \"data\": \"mock data\"}"
+      },
+      "id": "3a",
+      "name": "load-from-gdrive",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, -140]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import gdrive_client\n\nparent_id = _input.item.json.get('payload', {}).get('parent_id')\nfilename = _input.item.json.get('payload', {}).get('filename')\ncontent = _input.item.json.get('payload', {}).get('content')\n# Placeholder implementation\nreturn {\"success\": True, \"data\": \"mock write\"}"
+      },
+      "id": "3b",
+      "name": "save-to-gdrive",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nfrom datetime import datetime\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import db_client\n\nentry = _input.item.json.get('payload', {}).get('entry')\nphase = _input.item.json.get('payload', {}).get('phase', 'general')\ndb_client.log_decision(phase, entry, 'system')\nreturn {\"success\": True, \"data\": entry}"
+      },
+      "id": "3c",
+      "name": "append-log-entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 160]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { sucesso: $input.first().json.success, dados: $input.first().json.data, erro: null } };"
+      },
+      "id": "4",
+      "name": "return-result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 0]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "route-operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "route-operation": {
+      "main": [
+        [
+          {
+            "node": "load-from-gdrive",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "save-to-gdrive",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "append-log-entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "load-from-gdrive": {
+      "main": [
+        [
+          {
+            "node": "return-result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save-to-gdrive": {
+      "main": [
+        [
+          {
+            "node": "return-result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append-log-entry": {
+      "main": [
+        [
+          {
+            "node": "return-result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

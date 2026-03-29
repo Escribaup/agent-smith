@@ -1,0 +1,132 @@
+{
+  "name": "01-onboarding-ceo",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import context_manager\n\nctx = context_manager.get_context()\nlast_msg = _input.item.json.get('last_msg', '')\nreturn {\"context\": ctx, \"last_msg\": last_msg}"
+      },
+      "id": "2",
+      "name": "check-onboarding-progress",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "model": "claude-3-haiku-20240307",
+        "options": {}
+      },
+      "id": "3",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import whatsapp_client\n\nmsg = _input.item.json.get('proxima_pergunta')\nceo = os.getenv('CEO_WHATSAPP')\n\nif msg:\n    whatsapp_client.send_message(ceo, msg)\nreturn _input.item.json"
+      },
+      "id": "4",
+      "name": "send-whatsapp-question",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import context_manager\n\nkey = _input.item.json.get('chave_contexto')\nval = _input.item.json.get('valor_para_salvar')\n\nif key and val:\n    context_manager.set(key, val)\nreturn _input.item.json"
+      },
+      "id": "5",
+      "name": "save-answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.concluido }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "6",
+      "name": "IF: onboarding-completo",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1100, 0]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "check-onboarding-progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check-onboarding-progress": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "send-whatsapp-question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send-whatsapp-question": {
+      "main": [
+        [
+          {
+            "node": "save-answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save-answer": {
+      "main": [
+        [
+          {
+            "node": "IF: onboarding-completo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

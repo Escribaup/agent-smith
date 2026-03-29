@@ -1,0 +1,161 @@
+{
+  "name": "00-orquestrador",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smith/incoming",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Z-API Webhook (Main)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import db_client, context_manager\n\nmsg_data = _input.item.json.get('body', {})\nsender = msg_data.get('phone')\ntext = msg_data.get('text', {}).get('message', '')\n\n# Salva log da mensagem\ndb_client.save_message(sender, text, \"in\", sender)\n\nctx = context_manager.get_context()\nreturn {\"context\": ctx, \"incoming\": {\"sender\": sender, \"text\": text}}"
+      },
+      "id": "2",
+      "name": "log-message-and-get-context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "model": "claude-3-5-sonnet-20241022",
+        "options": {}
+      },
+      "id": "3",
+      "name": "AI Agent - Orquestrador",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.acao }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "enviar_whatsapp",
+              "output": 0
+            },
+            {
+              "value2": "acionar_subagente",
+              "output": 1
+            },
+            {
+              "value2": "registrar_log",
+              "output": 2
+            }
+          ]
+        }
+      },
+      "id": "4",
+      "name": "route-action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import whatsapp_client\n\ndest = os.getenv('CEO_WHATSAPP') if _input.item.json.get('destinatario') == 'ceo' else _input.item.json.get('destinatario')\nmsg = _input.item.json.get('mensagem')\nif dest and msg:\n    whatsapp_client.send_message(dest, msg)\nreturn _input.item.json"
+      },
+      "id": "5a",
+      "name": "direct-message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, -180]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.subagente }}",
+        "mode": "each",
+        "options": {}
+      },
+      "id": "5b",
+      "name": "call-sub-workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [900, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import db_client, context_manager\n\ndados = _input.item.json.get('atualizacao_contexto')\nrazao = _input.item.json.get('razao')\n\nif dados:\n    # Abstração simplificada para merge de contexto dict via python json\n    for k, v in dados.items():\n        context_manager.set(k, v)\nif razao:\n    db_client.log_decision(\"orquestrador\", razao, \"system\")\nreturn _input.item.json"
+      },
+      "id": "5c",
+      "name": "update-context-and-log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 180]
+    }
+  ],
+  "connections": {
+    "Z-API Webhook (Main)": {
+      "main": [
+        [
+          {
+            "node": "log-message-and-get-context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "log-message-and-get-context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Orquestrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Orquestrador": {
+      "main": [
+        [
+          {
+            "node": "route-action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "route-action": {
+      "main": [
+        [
+          {
+            "node": "direct-message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "call-sub-workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "update-context-and-log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

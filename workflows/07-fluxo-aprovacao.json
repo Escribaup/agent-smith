@@ -1,0 +1,112 @@
+{
+  "name": "07-fluxo-aprovacao",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import whatsapp_client\n\nfase = _input.item.json.get('fase')\nmensagem_ceo = _input.item.json.get('mensagem_ceo')\nceo = os.getenv('CEO_WHATSAPP')\nwhatsapp_client.send_message(ceo, mensagem_ceo)\nreturn _input.item.json"
+      },
+      "id": "2",
+      "name": "send-approval-request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smith/approval-wait",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "3",
+      "name": "wait-for-response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "msg = _input.item.json.get('body', {}).get('text', {}).get('message', '').lower()\nif msg in ['ok', 'sim', 'pode']:\n    approved = True\n    feedback = None\nelif msg in ['ajusta', 'muda', 'nao']:\n    approved = False\n    feedback = 'solicitado_ajuste'\nelse:\n    approved = False\n    feedback = 'invalid_response'\n\nreturn {\"approved\": approved, \"feedback\": feedback, \"orig_msg\": msg}"
+      },
+      "id": "4",
+      "name": "parse-approval-response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approved }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "5",
+      "name": "IF: aprovado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "send-approval-request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send-approval-request": {
+      "main": [
+        [
+          {
+            "node": "wait-for-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "wait-for-response": {
+      "main": [
+        [
+          {
+            "node": "parse-approval-response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse-approval-response": {
+      "main": [
+        [
+          {
+            "node": "IF: aprovado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

@@ -1,0 +1,104 @@
+{
+  "name": "05-analista-economico",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import context_manager\n\nfase_atual = _input.item.json.get('fase', 'fase1')\ndados = context_manager.get_context()\nreturn {\"fase\": fase_atual, \"contexto\": dados}"
+      },
+      "id": "2",
+      "name": "load-phase-data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "model": "claude-3-5-sonnet-20241022",
+        "options": {}
+      },
+      "id": "3",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nimport json\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import gdrive_client, context_manager\n\nfolders = context_manager.get('config.gdrive_folders', {})\nanalise = _input.item.json.get('analise', {})\nfase = _input.item.json.get('fase', 'fase1')\n\ncontent = json.dumps(analise, indent=2)\nfile_id = gdrive_client.write_document(folders.get('relatorios'), f\"analise-estrategica-{fase}.json\", content)\n\nreturn {\"file_id\": file_id, \"analise\": analise}"
+      },
+      "id": "4",
+      "name": "save-analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import whatsapp_client\n\nceo = os.getenv('CEO_WHATSAPP')\nanalise = _input.item.json.get('analise', {})\nmsg = f\"Finalizei o diagnóstico da fase com base nos princípios de Adam Smith.\\nPrioridade 1: {analise.get('prioridade_acao', '')}\\nSalvei o detalhe no Drive. Responda 'Ok' para seguir.\"\nwhatsapp_client.send_message(ceo, msg)\nreturn _input.item.json"
+      },
+      "id": "5",
+      "name": "notify-ceo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "load-phase-data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "load-phase-data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "save-analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save-analysis": {
+      "main": [
+        [
+          {
+            "node": "notify-ceo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

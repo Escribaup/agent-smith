@@ -1,0 +1,114 @@
+{
+  "name": "06-followup-semanal",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Schedule Trigger (Friday 8am)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [0, -100]
+    },
+    {
+      "parameters": {
+        "events": [
+          "message.created"
+        ]
+      },
+      "id": "1b",
+      "name": "Webhook Trigger (Inactivity Alert)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 100]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import context_manager\n\nctx = context_manager.get_context()\ntrigger_type = \"schedule\" if _input.item.json.get('body') is None else \"webhook\"\nreturn {\"context\": ctx, \"trigger\": trigger_type}"
+      },
+      "id": "2",
+      "name": "load-context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "model": "claude-3-haiku-20240307",
+        "options": {}
+      },
+      "id": "3",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import sys\nimport os\nsys.path.append(os.getenv('PROJECT_ROOT', '/data/agent-smith'))\nfrom tools import whatsapp_client, db_client\n\nceo = os.getenv('CEO_WHATSAPP')\ndata = _input.item.json\n\nif data.get('tipo_mensagem') != \"nenhuma\" and data.get('mensagem'):\n    whatsapp_client.send_message(ceo, data['mensagem'])\n    \nif data.get('registrar_log') and data.get('entrada_log'):\n    db_client.log_decision(\"followup\", data['entrada_log'], \"system\")\n    \nreturn data"
+      },
+      "id": "4",
+      "name": "send-and-log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Friday 8am)": {
+      "main": [
+        [
+          {
+            "node": "load-context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger (Inactivity Alert)": {
+      "main": [
+        [
+          {
+            "node": "load-context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "load-context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "send-and-log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}
