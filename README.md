@@ -32,8 +32,8 @@ ssh root@seu-ip
 
 **A. Clone o repositório**
 ```bash
-git clone https://github.com/seu-usuario/agente-smith.git
-cd agente-smith
+git clone https://github.com/Escribaup/agent-smith.git
+cd agent-smith
 ```
 
 **B. Dê permissão ao Instalador**
